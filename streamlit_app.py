@@ -5,30 +5,62 @@ import math
 # Configuration de la page
 st.set_page_config(page_title="Lille Air Check", page_icon="💧", layout="centered")
 
-# Style personnalisé pour améliorer l'UI
+# CSS Avancé pour un look moderne
 st.markdown("""
     <style>
-    .main {
-        background-color: #f5f7f9;
+    /* Force le fond en blanc/gris très clair */
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     }
-    .stMetric {
-        background-color: #ffffff;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .result-box {
-        padding: 20px;
+    
+    /* Style des cartes de métriques */
+    div[data-testid="stMetric"] {
+        background-color: rgba(255, 255, 255, 0.8);
         border-radius: 15px;
-        background-color: #e1f5fe;
-        border: 1px solid #01579b;
+        padding: 15px !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        transition: transform 0.3s ease;
+        border: 1px solid rgba(255,255,255,0.3);
+    }
+    
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    }
+
+    /* Cadre de résultat principal */
+    .result-card {
+        background: white;
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         text-align: center;
+        margin: 20px 0;
+        border-left: 8px solid #007bff;
+    }
+
+    .result-value {
+        font-size: 4rem;
+        font-weight: 800;
+        color: #007bff;
+        margin: 0;
+    }
+
+    .result-label {
+        font-size: 1.2rem;
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* Personnalisation du slider */
+    .stSlider {
+        padding-top: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
 def get_lille_weather():
-    # Coordonnées de Lille (Lesquin)
     url = "https://api.open-meteo.com/v1/forecast?latitude=50.6292&longitude=3.0573&current=temperature_2m,relative_humidity_2m,dew_point_2m&timezone=Europe%2FParis"
     try:
         data = requests.get(url).json()
@@ -37,64 +69,63 @@ def get_lille_weather():
         return None
 
 def calc_rh(dp, t_int):
-    # Formule de Magnus-Tetens
     A, B = 17.625, 243.04
     ps_dp = math.exp((A * dp) / (B + dp))
     ps_t = math.exp((A * t_int) / (B + t_int))
     return min(100.0, (ps_dp / ps_t) * 100)
 
-# --- HEADER ---
-st.title("🌡️ Lille Air Check")
-st.markdown("Comparez l'humidité extérieure de Lille avec votre intérieur via le **point de rosée**.")
+# --- CONTENU DE LA PAGE ---
+st.markdown("<h1 style='text-align: center; color: #1e3d59;'>💧 Lille Air Quality</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #555;'>Calcul de l'humidité intérieure idéale via le point de rosée</p>", unsafe_allow_html=True)
 
 weather = get_lille_weather()
 
 if weather:
-    t_ext = weather['temperature_2m']
-    rh_ext = weather['relative_humidity_2m']
-    dp_ext = weather['dew_point_2m']
-
-    # --- SECTION MÉTÉO EXTÉRIEURE ---
-    st.subheader("📍 Conditions actuelles à Lille")
+    # 1. Dashboard Extérieur
     col1, col2, col3 = st.columns(3)
-    col1.metric("Temp. Ext.", f"{t_ext} °C")
-    col2.metric("Humidité Ext.", f"{rh_ext} %")
-    col3.metric("Pt de Rosée", f"{dp_ext} °C")
+    with col1:
+        st.metric("Temp. Lille", f"{weather['temperature_2m']}°C")
+    with col2:
+        st.metric("Humidité Lille", f"{weather['relative_humidity_2m']}%")
+    with col3:
+        st.metric("Point de Rosée", f"{weather['dew_point_2m']}°C")
+
+    st.write("")
     
-    st.caption("Source des données : [Open-Meteo (DWD/ICON)](https://open-meteo.com/)")
+    # 2. Entrée utilisateur
+    st.markdown("### 🏠 Réglage de votre intérieur")
+    t_int = st.select_slider(
+        "Quelle température fait-il chez vous ?",
+        options=[i/2 for i in range(30, 61)], # De 15.0 à 30.0
+        value=20.0
+    )
 
-    st.divider()
-
-    # --- SECTION CALCUL ---
-    st.subheader("🏠 Votre Intérieur")
-    t_int = st.slider("Température de votre domicile (°C)", 15.0, 28.0, 20.0, 0.5)
+    # 3. Calcul et Affichage stylisé
+    rh_cible = calc_rh(weather['dew_point_2m'], t_int)
     
-    rh_cible = calc_rh(dp_ext, t_int)
-
-    # --- AFFICHAGE DU RÉSULTAT ---
     st.markdown(f"""
-        <div class="result-box">
-            <p style='margin-bottom:0; font-size: 1.2rem; color: #01579b;'>Humidité relative théorique chez vous :</p>
-            <h1 style='margin-top:0; color: #01579b; font-size: 3.5rem;'>{round(rh_cible, 1)} %</h1>
+        <div class="result-card">
+            <p class="result-label">Humidité cible conseillée</p>
+            <p class="result-value">{round(rh_cible, 1)}%</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # --- INTERPRÉTATION ---
-    st.write("") # Espacement
+    # 4. Alertes visuelles
     if rh_cible < 35:
-        st.warning("🫁 **Air très sec.** L'air extérieur contient peu d'eau. En chauffant à cette température, l'air devient irritant pour les voies respiratoires.")
-    elif 35 <= rh_cible <= 55:
-        st.success("✨ **Air idéal.** C'est la zone de confort parfaite pour votre santé et votre logement.")
+        st.info("💡 **Note :** L'air sera sec. Hydratez-vous bien !")
+    elif rh_cible > 55:
+        st.warning("⚠️ **Attention :** Risque de buée sur les vitres. Pensez à aérer 5 min.")
     else:
-        st.error("⚠️ **Risque de condensation.** L'air extérieur est très chargé en eau. Si votre hygromètre réel dépasse ce chiffre, ouvrez vite les fenêtres !")
+        st.success("✅ **Parfait :** C'est le taux idéal pour Lille aujourd'hui.")
+
+    # 5. Footer & Source
+    st.markdown("---")
+    st.markdown(f"""
+        <div style='text-align: center; color: #7f8c8d; font-size: 0.8rem;'>
+            Données en temps réel : <b>Open-Meteo</b> (Station Lille-Lesquin)<br>
+            <i>Physique : Formule de Magnus-Tetens</i>
+        </div>
+    """, unsafe_allow_html=True)
 
 else:
-    st.error("Impossible de joindre les serveurs météo. Vérifiez votre connexion.")
-
-# --- FOOTER ---
-st.divider()
-st.markdown("""
-    <small>💡 **Comment ça marche ?** L'air froid contient peu de vapeur d'eau. En entrant chez vous, cet air se réchauffe. 
-    Son point de rosée reste fixe, ce qui fait chuter son humidité relative. Ce site vous donne le taux que vous devriez 
-    avoir si votre air était 100% renouvelé.</small>
-""", unsafe_allow_html=True)
+    st.error("Impossible de récupérer la météo. Réessayez dans un instant.")
