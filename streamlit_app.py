@@ -2,130 +2,108 @@ import streamlit as st
 import requests
 import math
 
-# Configuration de la page
-st.set_page_config(page_title="Lille Air Check", page_icon="💧", layout="centered")
+# Configuration
+st.set_page_config(page_title="Lille Humidité", page_icon="💧")
 
-# CSS Avancé pour un look moderne
+# CSS pour forcer le contraste et la visibilité
 st.markdown("""
     <style>
-    /* Force le fond en blanc/gris très clair */
+    /* On force le fond de la page en gris très clair pour éviter le blanc sur blanc */
     .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        background-color: #f0f2f6 !important;
     }
     
-    /* Style des cartes de métriques */
-    div[data-testid="stMetric"] {
-        background-color: rgba(255, 255, 255, 0.8);
-        border-radius: 15px;
-        padding: 15px !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        transition: transform 0.3s ease;
-        border: 1px solid rgba(255,255,255,0.3);
-    }
-    
-    div[data-testid="stMetric"]:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    /* On force tout le texte en noir ou gris très foncé */
+    h1, h2, h3, p, span, label {
+        color: #1a1a1a !important;
     }
 
-    /* Cadre de résultat principal */
-    .result-card {
-        background: white;
+    /* Cadres des métriques météo */
+    div[data-testid="stMetric"] {
+        background-color: #ffffff !important;
+        border: 2px solid #007bff !important;
+        border-radius: 12px !important;
+        padding: 15px !important;
+        box-shadow: 4px 4px 10px rgba(0,0,0,0.1) !important;
+    }
+
+    /* Grand cadre de résultat */
+    .result-container {
+        background-color: #007bff !important;
+        color: white !important;
         padding: 30px;
         border-radius: 20px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         text-align: center;
         margin: 20px 0;
-        border-left: 8px solid #007bff;
+        box-shadow: 0 10px 20px rgba(0,123,255,0.3);
     }
-
-    .result-value {
-        font-size: 4rem;
-        font-weight: 800;
-        color: #007bff;
+    
+    .result-container h1 {
+        color: white !important;
+        font-size: 4rem !important;
         margin: 0;
     }
 
-    .result-label {
-        font-size: 1.2rem;
-        color: #555;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-
-    /* Personnalisation du slider */
-    .stSlider {
-        padding-top: 20px;
+    .result-container p {
+        color: #e0e0e0 !important;
+        font-size: 1.2rem !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-def get_lille_weather():
+def get_weather():
     url = "https://api.open-meteo.com/v1/forecast?latitude=50.6292&longitude=3.0573&current=temperature_2m,relative_humidity_2m,dew_point_2m&timezone=Europe%2FParis"
     try:
-        data = requests.get(url).json()
-        return data['current']
-    except:
-        return None
+        r = requests.get(url).json()
+        return r['current']
+    except: return None
 
 def calc_rh(dp, t_int):
-    A, B = 17.625, 243.04
-    ps_dp = math.exp((A * dp) / (B + dp))
-    ps_t = math.exp((A * t_int) / (B + t_int))
+    # Formule Magnus-Tetens
+    ps_dp = math.exp((17.625 * dp) / (243.04 + dp))
+    ps_t = math.exp((17.625 * t_int) / (243.04 + t_int))
     return min(100.0, (ps_dp / ps_t) * 100)
 
-# --- CONTENU DE LA PAGE ---
-st.markdown("<h1 style='text-align: center; color: #1e3d59;'>💧 Lille Air Quality</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #555;'>Calcul de l'humidité intérieure idéale via le point de rosée</p>", unsafe_allow_html=True)
+# --- Contenu ---
+st.write("# 🌡️ Lille Air Check")
 
-weather = get_lille_weather()
+data = get_weather()
 
-if weather:
-    # 1. Dashboard Extérieur
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Temp. Lille", f"{weather['temperature_2m']}°C")
-    with col2:
-        st.metric("Humidité Lille", f"{weather['relative_humidity_2m']}%")
-    with col3:
-        st.metric("Point de Rosée", f"{weather['dew_point_2m']}°C")
+if data:
+    # Infos Lille en haut
+    st.write("### Météo actuelle à Lille")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Temp. Ext.", f"{data['temperature_2m']}°C")
+    c2.metric("Humidité Ext.", f"{data['relative_humidity_2m']}%")
+    c3.metric("Point de Rosée", f"{data['dew_point_2m']}°C")
 
-    st.write("")
-    
-    # 2. Entrée utilisateur
-    st.markdown("### 🏠 Réglage de votre intérieur")
-    t_int = st.select_slider(
-        "Quelle température fait-il chez vous ?",
-        options=[i/2 for i in range(30, 61)], # De 15.0 à 30.0
-        value=20.0
-    )
+    st.write("---")
 
-    # 3. Calcul et Affichage stylisé
-    rh_cible = calc_rh(weather['dew_point_2m'], t_int)
-    
+    # Curseur température
+    st.write("### 🏠 Votre domicile")
+    t_int = st.slider("Quelle température fait-il chez vous ?", 15.0, 30.0, 20.0, 0.5)
+
+    # Calcul
+    rh_cible = calc_rh(data['dew_point_2m'], t_int)
+
+    # Résultat dans un gros bloc bleu pour être sûr de le voir
     st.markdown(f"""
-        <div class="result-card">
-            <p class="result-label">Humidité cible conseillée</p>
-            <p class="result-value">{round(rh_cible, 1)}%</p>
+        <div class="result-container">
+            <p>HUMIDITÉ CIBLE CHEZ VOUS</p>
+            <h1>{round(rh_cible, 1)}%</h1>
         </div>
     """, unsafe_allow_html=True)
 
-    # 4. Alertes visuelles
+    # Conseils
     if rh_cible < 35:
-        st.info("💡 **Note :** L'air sera sec. Hydratez-vous bien !")
-    elif rh_cible > 55:
-        st.warning("⚠️ **Attention :** Risque de buée sur les vitres. Pensez à aérer 5 min.")
+        st.info("💡 Air sec. L'air extérieur contient peu d'eau.")
+    elif rh_cible > 60:
+        st.error("⚠️ Risque de condensation ! Aérez pour évacuer l'eau.")
     else:
-        st.success("✅ **Parfait :** C'est le taux idéal pour Lille aujourd'hui.")
+        st.success("✅ Taux idéal.")
 
-    # 5. Footer & Source
-    st.markdown("---")
-    st.markdown(f"""
-        <div style='text-align: center; color: #7f8c8d; font-size: 0.8rem;'>
-            Données en temps réel : <b>Open-Meteo</b> (Station Lille-Lesquin)<br>
-            <i>Physique : Formule de Magnus-Tetens</i>
-        </div>
-    """, unsafe_allow_html=True)
+    st.write("---")
+    st.caption("Source : Open-Meteo | Physique : Point de Rosée")
 
 else:
-    st.error("Impossible de récupérer la météo. Réessayez dans un instant.")
+    st.error("Données météo indisponibles.")
