@@ -1,0 +1,38 @@
+name: Claude - Review
+
+on:
+  pull_request:
+    types: [ opened, synchronize, converted_to_draft ]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
+
+concurrency:
+  group: 'claude-review-${{ github.event.pull_request.number }}'
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Résumé IA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          direct_prompt: |
+            Tu es un reviewer senior 
+
+            Analyse la Pull Request et génère en français et en markdown :
+
+            1. **Résumé** — ce que fait cette PR (3-5 bullet points)
+            2. **Remarques** — bugs potentiels, points d'attention, bonnes pratiques
+               (max 5 points, omet cette section s'il n'y a rien à signaler)
+
+            Poste le résultat en commentaire sur la PR.
+          allowed_tools: "mcp__github__create_pull_request_review,mcp__github__create_review_comment,mcp__github__create_issue_comment"
